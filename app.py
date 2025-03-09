@@ -7,6 +7,8 @@ from discord import app_commands
 import subprocess
 import sys
 import ast
+import importlib.util
+import pkgutil
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -16,8 +18,10 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-async def install_package(package_name):
-    """Automatically installs a package if it is missing."""
+def is_package_installed(package_name):
+    return importlib.util.find_spec(package_name) is not None
+
+def install_package(package_name):
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
         print(f"Successfully installed package: {package_name}")
@@ -27,13 +31,15 @@ async def install_package(package_name):
 def get_imports_from_file(filepath):
     with open(filepath, "r") as file:
         tree = ast.parse(file.read(), filename=filepath)
-    imports = []
+    
+    imports = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                imports.append(alias.name)
-        elif isinstance(node, ast.ImportFrom):
-            imports.append(node.module)
+                imports.add(alias.name.split(".")[0]) 
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.add(node.module.split(".")[0]) 
+    
     return imports
 
 async def load_commands():
@@ -43,12 +49,11 @@ async def load_commands():
             try:
                 filepath = os.path.join("./commands", filename)
                 required_modules = get_imports_from_file(filepath)
-                for module in required_modules:
-                    try:
-                        __import__(module)
-                    except ImportError:
-                        await install_package(module)
-
+                third_party_modules = {mod for mod in required_modules if importlib.util.find_spec(mod) is None}
+                for module in third_party_modules:
+                    if not is_package_installed(module):
+                        install_package(module)
+                
                 await bot.load_extension(cog_name)
                 print(f"Loaded: {cog_name}")
             except Exception as e:
