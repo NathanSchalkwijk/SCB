@@ -23,7 +23,7 @@ def is_package_installed(package_name):
 
 def install_package(package_name):
     try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package_name, '--break-system-packages'])
         print(f"Successfully installed package: {package_name}")
     except subprocess.CalledProcessError as e:
         print(f"Failed to install package: {package_name} - {e}")
